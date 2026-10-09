@@ -42,6 +42,12 @@ powershell -ExecutionPolicy Bypass -File scripts/build.ps1
 
 テスト用PDF、スクリーンショット、OCR本文、EXE、依存ライブラリはGitに含めません。
 
+## ダウンロードとmacOS対応
+
+Windows版の確認用EXEは [Releases](https://github.com/takacore/cic-personal-data-remover/releases) に置きます。Pythonの別途インストールは不要です。署名なしのため、Windowsが警告を表示する場合があります。ダウンロードしたファイルは同梱のSHA-256一覧で照合できます。
+
+macOS版・DMGはまだ提供していません。移植と実機検証に協力いただける方向けの条件を [CONTRIBUTING.md](CONTRIBUTING.md) にまとめています。Windows版を拡張子だけ変えてDMGにすることはできません。リポジトリは現時点でPrivateの確認用です。
+
 ## ライセンスと公開状態
 
 このリポジトリはPrivateでの確認用です。現時点でプロジェクト自体のオープンソースライセンスは付与していません。PyMuPDFはAGPL-3.0または商用ライセンスです。公開/配布の前にプロジェクトのライセンスと依存関係の条件を整備してください。
