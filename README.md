@@ -1,6 +1,8 @@
 # CIC Personal Data Remover
 
 CICの信用情報開示報告書を、Windows端末内でマスキングするツールです。指定した領域を黒塗りした画像PDFを新しく作ります。
+<img width="761" height="539" alt="スクリーンショット 2026-10-09 204124" src="https://github.com/user-attachments/assets/f8365f50-dde4-4839-a0b2-14bd078b5239" />
+
 
 ## 動作と確認範囲
 
