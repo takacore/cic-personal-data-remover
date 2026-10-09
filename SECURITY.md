@@ -8,6 +8,8 @@ Input and output paths are restricted to local fixed disks. UNC paths, mapped ne
 
 Input is parsed from an immutable in-memory snapshot. The snapshot's SHA-256 must match the analysis before processing. No original-PDF copy, OCR text, or work-image file is saved. Layouts that cannot be recognized are fully blacked out; page count and order are unrestricted.
 
+Application-information and usage-record pages intentionally remove names only. Other visible values, including dates of birth, phone numbers, postal codes and receipt numbers, can remain. This is a selective masking policy, not complete de-identification. Credit, reference and summary pages retain the broader masking rules. Credit-guidance pages are not yet supported and remain fully blacked out when unrecognized; trailing pages are never unconditionally exempted.
+
 Only a verified output reaches a collision-free, exclusively created temporary file. The file is replaced into the selected final location. Normal exceptions and Python interruptions clean up only the temporary file created by that call. Cleanup failure is reported. During processing, the application's close control waits for the worker to complete.
 
 Forced OS termination or power loss during final writing can leave a verified-result temporary file. The onefile executable also extracts runtime components before Python starts, and those can remain after forced termination. This application does not promise secure physical deletion, empty pagefiles/crash dumps, or deletion of unrelated OS temporary files.

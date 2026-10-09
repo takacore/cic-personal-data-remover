@@ -40,7 +40,8 @@ from tkinter import filedialog, messagebox, ttk
 
 APP_NAME = "CIC Personal Data Remover"
 APP_TITLE = "CIC 個人情報削除ツール"
-APP_VERSION = "1.1.0"
+APP_VERSION = "1.1.1"
+NAME_ONLY_NOTICE = "申込情報・利用記録は氏名のみ削除。生年月日・電話番号等は残ります。"
 
 COLOR_BG = "#0B1424"
 COLOR_PANEL = "#111D30"
@@ -59,8 +60,8 @@ RECEIPT_NUMBER = re.compile(r"\b\d{2}-[A-Z0-9]{2}-\d{6}\b", re.IGNORECASE)
 LAYOUT_NAMES = {
     "summary": "照会入力情報",
     "credit": "クレジット情報",
-    "application": "申込情報",
-    "usage": "利用記録",
+    "application": "申込情報（氏名のみ削除）",
+    "usage": "利用記録（氏名のみ削除）",
     "reference": "参考情報",
     "cover": "CIC表紙",
     "unrecognized": "未認識（全面黒塗り）",
@@ -285,22 +286,20 @@ def _classify_known_page(page: pymupdf.Page, page_index: int) -> PagePlan:
         and max((len(row.cells) for row in table.rows), default=0) == 6
         for table in tables
     ):
+        name_regions: list[MaskRegion] = []
         for table in tables:
-            # The alternating name/birth label rows have merged (None) cells.
-            for row, category in zip(
-                (1, 3, 5, 6, 7),
-                ("氏名", "生年月日", "郵便番号", "電話番号", "電話番号"),
-            ):
-                regions.append(_cell(table, row, 1, category))
-        return PagePlan(page_index, "application", regions)
+            # Both displayed name rows belong to this merged value cell. Preserve
+            # all remaining values and headers under this explicit name-only policy.
+            if table.rows[2].cells[1] is not None:
+                raise UnsupportedDocumentError("氏名欄の結合構造が想定と異なります。")
+            name_regions.append(_cell(table, 1, 1, "氏名"))
+        return PagePlan(page_index, "application", name_regions)
 
-    # Usage record: only name and birth date are identifying values.
+    # Usage records use the same requested name-only policy as application pages.
     if (len(tables) == 1 and rows == 5 and max_columns == 2
             and 300 <= width <= 450 and 0 <= x0 <= 50
             and 50 <= y0 <= 120 and 55 <= y1 - y0 <= 100):
-        regions.append(_cell(first, 1, 1, "氏名"))
-        regions.append(_cell(first, 2, 1, "生年月日"))
-        return PagePlan(page_index, "usage", regions)
+        return PagePlan(page_index, "usage", [_cell(first, 1, 1, "氏名")])
 
     return _unknown_plan(page, page_index)
 
@@ -803,7 +802,7 @@ class CICMaskerApp(tk.Tk):
             bg="#E9E6DC",
             fg="#55616A",
             font=("Noto Sans JP", 8),
-            height=5, wrap="word", relief="flat", highlightthickness=0,
+            height=4, wrap="word", relief="flat", highlightthickness=0,
             state="disabled",
         )
         self.review_scroll = ttk.Scrollbar(review_body, orient="vertical", command=self.review_text.yview)
@@ -985,11 +984,12 @@ class CICMaskerApp(tk.Tk):
             self.status_title.configure(text="未認識ページは全面黒塗りで保存します", fg="#8A5A00")
         else:
             self.status_title.configure(text="削除候補の領域を検出しました", fg=COLOR_ACCENT_DARK)
-        detail = (f"{analysis.page_count}ページ中 {analysis.affected_page_count}ページから、"
-                  f"{analysis.masked_region_count}か所の黒塗り領域を設定しました。")
-        if analysis.unrecognized_page_count:
-            detail += f" 未認識 {analysis.unrecognized_page_count}ページを全面黒塗りします。"
-        detail += f" 全面黒塗りは計 {analysis.fully_masked_page_count}ページです。認識済みのページも保存後に必ず目視確認してください。"
+        detail = (f"{analysis.page_count}ページ、黒塗り{analysis.masked_region_count}か所。"
+                  f"全面黒塗り{analysis.fully_masked_page_count}ページ（未認識{analysis.unrecognized_page_count}）。")
+        if any(plan.layout in {"application", "usage"} for plan in analysis.plans):
+            detail += " " + NAME_ONLY_NOTICE
+        if not any(plan.layout in {"application", "usage"} for plan in analysis.plans):
+            detail += " 保存後、共有前に全ページを目視確認してください。"
         self.status_text.configure(text=detail)
         self.file_detail.configure(
             text=f"{analysis.page_count}ページ  /  削除対象 {analysis.masked_region_count}か所"
@@ -1032,6 +1032,11 @@ class CICMaskerApp(tk.Tk):
         if result.unrecognized_page_count:
             text += f" 未認識 {result.unrecognized_page_count}ページは全面黒塗りです。"
         text += f" 全面黒塗りは計 {result.fully_masked_page_count}ページ。共有前に削除漏れを目視確認してください。"
+        name_only_notice = (NAME_ONLY_NOTICE if self.analysis and any(
+            plan.layout in {"application", "usage"} for plan in self.analysis.plans
+        ) else "")
+        if name_only_notice:
+            text += " " + name_only_notice
         self.status_text.configure(text=text)
         self.file_detail.configure(text=str(result.output_path))
         self._set_steps(3)
@@ -1082,6 +1087,8 @@ def _run_cli(args: list[str]) -> int:
         f"full_mask_pages={result.fully_masked_page_count} bytes={result.output_size}"
     )
     print("PDF構造の検証が完了しました。共有前に画像内の削除漏れを目視確認してください。")
+    if any(plan.layout in {"application", "usage"} for plan in analysis.plans):
+        print(NAME_ONLY_NOTICE)
     if show_path:
         print(f"output={result.output_path}")
     return 0

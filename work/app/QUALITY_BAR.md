@@ -27,3 +27,5 @@ The primary action is teal only when safe to proceed. Disabled, scanning, deleti
 ## Honest Risk
 
 Detect supported table geometry per page without fixing page count or order. Unrecognized or structurally uncertain pages are fully blacked out rather than retained unchanged. Explain full-page deletion before saving and in the completion message. PDF structure verification is not proof that every visible identifying value was found; always ask users to review all output pages before sharing.
+
+Application-information and usage-record pages intentionally remove names only. The detection list identifies this policy and status text states that birth dates, phone numbers, and other fields can remain. Preserve the existing inspection-station visual design. Credit guidance remains unsupported; do not imply that the last four pages are safe to preserve.

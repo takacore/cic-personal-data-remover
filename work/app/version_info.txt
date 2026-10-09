@@ -1,7 +1,7 @@
 VSVersionInfo(
   ffi=FixedFileInfo(
-    filevers=(1, 1, 0, 0),
-    prodvers=(1, 1, 0, 0),
+    filevers=(1, 1, 1, 0),
+    prodvers=(1, 1, 1, 0),
     mask=0x3f,
     flags=0x0,
     OS=0x40004,
@@ -15,11 +15,11 @@ VSVersionInfo(
         '041104B0',
         [StringStruct('CompanyName', 'Local Utility'),
          StringStruct('FileDescription', 'CIC 個人情報削除ツール'),
-         StringStruct('FileVersion', '1.1.0'),
+         StringStruct('FileVersion', '1.1.1'),
          StringStruct('InternalName', 'CICMasker'),
          StringStruct('OriginalFilename', 'CICMasker.exe'),
          StringStruct('ProductName', 'CIC 個人情報削除ツール'),
-         StringStruct('ProductVersion', '1.1.0')])
+         StringStruct('ProductVersion', '1.1.1')])
     ]),
     VarFileInfo([VarStruct('Translation', [1041, 1200])])
   ]

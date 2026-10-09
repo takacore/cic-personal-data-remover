@@ -48,6 +48,66 @@ class CICMaskerTests(unittest.TestCase):
                          fontsize=10, rotate=90 if rotated else 0)
         return page
 
+    def name_only_page(self, document, layout, rotated=False, malformed_name=False,
+                       unmerged_name=False):
+        """Real vector grids, including application name/birth merged cells."""
+        page = document.new_page(width=595 if rotated else 842, height=842 if rotated else 595)
+        if rotated:
+            page.set_rotation(90)
+        transform = page.derotation_matrix
+        rotation = 90 if rotated else 0
+        page.insert_text(pymupdf.Point(610, 40) * transform, "12-AB-345678",
+                         fontsize=10, rotate=rotation)
+        if layout == "application":
+            columns = (21, 133, 421, 541, 641, 731, 821)
+            row_offsets = (0, 14, 21, 28, 35, 42, 56, 70, 84, 98, 112)
+            starts = (80, 223)
+        else:
+            columns = (22, 180, 401)
+            row_offsets = (0, 14, 28, 42, 56, 70)
+            starts = (93,)
+        for table_index, start in enumerate(starts):
+            boundaries = tuple(start + offset for offset in row_offsets)
+            for boundary, y in enumerate(boundaries):
+                for column, (left, right) in enumerate(zip(columns, columns[1:])):
+                    skip = layout == "application" and column == 1 and boundary in (2, 4)
+                    if unmerged_name and boundary == 2:
+                        skip = False
+                    skip = skip or (malformed_name and column == 1 and boundary == 1)
+                    if not skip:
+                        page.draw_line(pymupdf.Point(left, y) * transform,
+                                       pymupdf.Point(right, y) * transform, width=0.5)
+            for x in columns:
+                page.draw_line(pymupdf.Point(x, boundaries[0]) * transform,
+                               pymupdf.Point(x, boundaries[-1]) * transform, width=0.5)
+            for row, (top, bottom) in enumerate(zip(boundaries, boundaries[1:])):
+                for column, left in enumerate(columns[:-1]):
+                    if column == 1 and (row == 1 or (layout == "application" and row == 2)):
+                        value = f"SYNTHETIC_NAME_{table_index}_{row}"
+                    elif column == 1 and (row == 2 or (layout == "application" and row in (3, 4))):
+                        value = "SYNTHETIC_DOB"
+                    elif column == 1 and layout == "application" and row in (6, 7):
+                        value = "SYNTHETIC_PHONE"
+                    elif column >= 2 or row >= 3:
+                        value = f"SYNTHETIC_CONTRACT_{row}"
+                    else:
+                        value = f"SYNTHETIC_LABEL_{row}"
+                    page.insert_text(pymupdf.Point(left + 3, bottom - 2) * transform, value,
+                                     fontsize=4 if bottom - top < 10 else 6, rotate=rotation)
+        return page
+
+    def assert_retained_image_crop(self, original, output, rectangle):
+        """Compare final embedded raster pixels, independent of a new PDF render."""
+        scale = 180 / 72
+        pixmap = original.get_pixmap(matrix=pymupdf.Matrix(scale, scale), alpha=False, annots=False)
+        source = masker.Image.frombytes("RGB", (pixmap.width, pixmap.height), pixmap.samples)
+        payload = output.parent.extract_image(output.get_images()[0][0])["image"]
+        with masker.Image.open(io.BytesIO(payload)) as final:
+            box = tuple(round(value * scale) for value in rectangle)
+            before = source.crop(box).tobytes()
+            self.assertLess(min(before), 255, "retention fixture must contain visible ink")
+            self.assertEqual(final.crop(box).tobytes(), before)
+
     def make_pdf(self, name="input.pdf", pages=1, summary_index=None, rotated=False, extra=False):
         path = self.root / name
         with pymupdf.open() as document:
@@ -105,6 +165,85 @@ class CICMaskerTests(unittest.TestCase):
         with pymupdf.open(result.output_path) as document:
             self.assert_black(document[1], pymupdf.Rect(638, 354, 769, 509))
             self.assertEqual(document[1].rect, pymupdf.Rect(0, 0, 842, 595))
+
+    def test_application_masks_only_both_merged_names_in_every_table(self):
+        path = self.root / "application.pdf"
+        with pymupdf.open() as document:
+            self.name_only_page(document, "application")
+            document.save(path)
+        analysis, result = self.convert(path)
+        plan = analysis.plans[0]
+        self.assertEqual(plan.layout, "application")
+        self.assertEqual([region.category for region in plan.regions], ["氏名", "氏名"])
+        self.assertFalse(plan.full_mask)
+        with pymupdf.open(path) as original, pymupdf.open(result.output_path) as final:
+            for start in (80, 223):
+                self.assert_black(final[0], pymupdf.Rect(134, start + 15, 420, start + 27))
+                self.assert_retained_image_crop(original[0], final[0], (136, start + 30, 418, start + 40))
+                self.assert_retained_image_crop(original[0], final[0], (136, start + 58, 418, start + 81))
+                self.assert_retained_image_crop(original[0], final[0], (424, start + 4, 638, start + 10))
+            self.assert_retained_image_crop(original[0], final[0], (608, 28, 700, 43))
+            self.assertFalse(final[0].get_text().strip())
+
+    def test_usage_masks_only_name_and_retains_birth_contract_and_receipt(self):
+        path = self.root / "usage.pdf"
+        with pymupdf.open() as document:
+            self.name_only_page(document, "usage")
+            document.save(path)
+        analysis, result = self.convert(path)
+        self.assertEqual(analysis.plans[0].layout, "usage")
+        self.assertEqual([region.category for region in analysis.plans[0].regions], ["氏名"])
+        with pymupdf.open(path) as original, pymupdf.open(result.output_path) as final:
+            self.assert_black(final[0], pymupdf.Rect(181, 108, 400, 120))
+            self.assert_retained_image_crop(original[0], final[0], (183, 123, 398, 133))
+            self.assert_retained_image_crop(original[0], final[0], (183, 137, 398, 161))
+            self.assert_retained_image_crop(original[0], final[0], (608, 28, 700, 43))
+            self.assertFalse(final[0].get_text().strip())
+
+    def test_name_only_pages_are_order_independent_and_rotated(self):
+        path = self.root / "reordered.pdf"
+        with pymupdf.open() as document:
+            self.summary_page(document)
+            self.name_only_page(document, "usage", rotated=True)
+            document.new_page(width=842, height=595)
+            self.name_only_page(document, "application", rotated=True)
+            document.save(path)
+        analysis, result = self.convert(path)
+        self.assertEqual([plan.layout for plan in analysis.plans],
+                         ["summary", "usage", "unrecognized", "application"])
+        with pymupdf.open(path) as original, pymupdf.open(result.output_path) as final:
+            self.assert_black(final[1], pymupdf.Rect(181, 108, 400, 120))
+            self.assert_black(final[2])
+            for start in (80, 223):
+                self.assert_black(final[3], pymupdf.Rect(134, start + 15, 420, start + 27))
+                self.assert_retained_image_crop(original[3], final[3], (136, start + 30, 418, start + 40))
+            self.assert_retained_image_crop(original[1], final[1], (183, 123, 398, 133))
+            for index in (1, 3):
+                self.assert_retained_image_crop(original[index], final[index], (608, 28, 700, 43))
+
+    def test_malformed_name_cells_in_real_tables_fall_back_to_full_black(self):
+        for layout in ("application", "usage"):
+            with self.subTest(layout=layout):
+                path = self.root / f"malformed-{layout}.pdf"
+                with pymupdf.open() as document:
+                    self.name_only_page(document, layout, malformed_name=True)
+                    document.save(path)
+                analysis, result = self.convert(path, name=f"masked-{layout}.pdf")
+                self.assertEqual(analysis.plans[0].layout, "unrecognized")
+                self.assertTrue(analysis.plans[0].full_mask)
+                with pymupdf.open(result.output_path) as final:
+                    self.assert_black(final[0])
+
+    def test_unmerged_application_name_rows_are_not_partly_exposed(self):
+        path = self.root / "unmerged-application.pdf"
+        with pymupdf.open() as document:
+            self.name_only_page(document, "application", unmerged_name=True)
+            document.save(path)
+        analysis, result = self.convert(path)
+        self.assertEqual(analysis.plans[0].layout, "unrecognized")
+        self.assertTrue(analysis.plans[0].full_mask)
+        with pymupdf.open(result.output_path) as final:
+            self.assert_black(final[0])
 
     def test_unknown_page_is_full_black_without_source_render(self):
         path = self.make_pdf()
@@ -342,6 +481,28 @@ class CICMaskerTests(unittest.TestCase):
         with redirect_stdout(stream):
             self.assertEqual(masker._run_cli([str(path), str(output), "--show-path"]), 0)
         self.assertIn(str(output), stream.getvalue())
+
+    def test_cli_name_only_pages_warn_without_paths_and_verify_output(self):
+        for layout in ("application", "usage"):
+            with self.subTest(layout=layout):
+                path = self.root / f"cli-{layout}.pdf"
+                output = self.root / f"cli-{layout}-masked.pdf"
+                with pymupdf.open() as document:
+                    self.name_only_page(document, layout)
+                    document.save(path)
+                stream = io.StringIO()
+                with redirect_stdout(stream), redirect_stderr(stream), \
+                     mock.patch.object(masker, "_verify_pdf", wraps=masker._verify_pdf) as verify:
+                    self.assertEqual(masker._run_cli([str(path), str(output)]), 0)
+                verify.assert_called_once()
+                self.assertIn(masker.NAME_ONLY_NOTICE, stream.getvalue())
+                self.assertIn("PDF構造の検証", stream.getvalue())
+                self.assertNotIn(str(self.root), stream.getvalue())
+                self.assertNotIn(path.name, stream.getvalue())
+                self.assertNotIn(output.name, stream.getvalue())
+                masker._verify_pdf(output.read_bytes(), 1)
+                with pymupdf.open(output) as final:
+                    self.assertFalse(final[0].get_text().strip())
 
     def test_table_extraction_or_bad_cells_fall_back_to_full_mask(self):
         with pymupdf.open() as document:

@@ -271,7 +271,7 @@ All visible surfaces and controls are rectangular with square corners. The geome
 
 - **Status:** A bold title followed by explicit explanatory text. Ready and working titles use ink, verified and complete titles use dark teal, and refusal uses dark red.
 - **Progress:** An 8 px square-ended teal indicator on a navy trough. Analysis may use indeterminate motion; deletion and verification report determinate progress.
-- **State Copy:** Ready, scanning, deleting, structure-verified, complete, and refusal states each use distinct text. Name full-page deletion when any page is unrecognized. Completion always instructs visual review before sharing; it never claims all visible personal data was detected. Closing the window while processing is blocked until the worker finishes.
+- **State Copy:** Ready, scanning, deleting, structure-verified, complete, and refusal states each use distinct text. Name full-page deletion when any page is unrecognized. Application/usage rows explicitly say names-only deletion; analysis and completion explain that birth dates and phone numbers can remain. The scrollable review list uses four visible lines so this warning and the save action fit the minimum window. Completion always instructs visual review before sharing; it never claims all visible personal data was detected. Closing the window while processing is blocked until the worker finishes.
 
 ### Offline Badge and Safety Note
 

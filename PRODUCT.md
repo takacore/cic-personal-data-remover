@@ -35,6 +35,8 @@ The user selects a CIC PDF on Windows, reviews detected personal-information cat
 - Confirmed: each unrecognized page is fully blacked out and counted explicitly, so it cannot silently pass through unchanged.
 - Preserve credit contract, payment, inquiry, and registration information unless it is itself an identifying value.
 - Personal-information categories include names, dates of birth, sex, addresses, postal codes, personal and workplace phone numbers, workplace names, public identification numbers, spouse information, receipt/reference numbers, and free-text identity comments.
+- Application-information and usage-record pages are an explicit exception: mask names only and preserve other visible information, including identifying values. Explain this selective policy before saving; do not claim complete anonymization.
+- Credit guidance is not yet supported. Keep unknown pages fully blacked out regardless of their position, until a validated guidance layout is implemented.
 
 ## Evidence on Hand
 
