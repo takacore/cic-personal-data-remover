@@ -1,0 +1,31 @@
+# Sensitive inputs and generated documents
+outputs/
+tmp/
+*.pdf
+*.png
+*.json
+
+# Local Python/build state
+work/vendor/
+work/pyinstaller/
+work/tessdata/
+work/capture_window.py
+.impeccable/
+work/__pycache__/
+work/app/__pycache__/
+*.py[cod]
+*.spec
+build/
+dist/
+__pycache__/
+.venv/
+.env
+.env.*
+*.pem
+*.key
+
+# OS/editor files
+.DS_Store
+Thumbs.db
+.vscode/
+
